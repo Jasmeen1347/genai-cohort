@@ -9,7 +9,7 @@ import os
 # api_key = os.getenv("GEMINI_API_KEY")
 
 client = OpenAI(
-  api_key="AIzaSyBQkDu7q-rNsQ8O5Gi7i4qrInTOLRtWbrQ",
+  api_key="",
   base_url="https://generativelanguage.googleapis.com/v1beta/openai"
 )
 
