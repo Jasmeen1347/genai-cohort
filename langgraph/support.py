@@ -6,6 +6,8 @@ from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.mongodb import MongoDBSaver
 from langchain.tools import tool
 from langgraph.types import interrupt
+import json
+from langgraph.types import Command
 from langgraph.prebuilt import ToolNode, tools_condition
 
 @tool()
@@ -29,6 +31,7 @@ def chatbot(state: State):
   message = llm_with_tools.invoke(state["messages"])
   assert len(message.tool_calls) <= 1
   return {"messages": [message]}
+
 
 tool_node = ToolNode(tools=tools)
 
@@ -57,13 +60,34 @@ def create_chat_graph(checkpointer):
 def init():
   with MongoDBSaver.from_conn_string(DB_URI) as checkpointer:
     graph_with_mongo = create_chat_graph(checkpointer=checkpointer)
+    state = graph_with_mongo.get_state(config=config)
+    # for message in state.values["messages"]:
+    #   message.pretty_print()
 
-    while True:
-      user_input = input("> ")
-      # result = graph.invoke({"messages": [{"role": "user", "content": user_input}]})
-      for event in graph_with_mongo.stream({"messages": [{"role": "user", "content": user_input}]}, config, stream_mode="values"):
+    last_message = state.values["messages"][-1]
+    tool_calls = last_message.additional_kwargs.get("tool_calls", [])  
+
+    
+    user_query = None
+
+    for call in tool_calls:
+        if call.get("function", {}).get("name") == "human_assistant_tool":
+            args = call["function"].get("arguments", "{}")
+            try:
+                args_dict = json.loads(args)
+                user_query = args_dict.get("query")
+            except json.JSONDecodeError:
+                print("Failed to decode function arguments.")
+    
+    print("User is Tying to Ask:", user_query)
+    ans = input("Resolution > ")
+
+    # OpenAI Call to mimic human
+
+    resume_command = Command(resume={"data": ans})
+    
+    for event in graph_with_mongo.stream(resume_command, config, stream_mode="values"):
         if "messages" in event:
-          event["messages"][-1].pretty_print()
-
+            event["messages"][-1].pretty_print()
 
 init()
